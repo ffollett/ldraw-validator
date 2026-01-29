@@ -1,0 +1,7 @@
+0 FILE main.ldr
+1 15 0 -24 0 1 0 0 0 1 0 0 0 1 col_sub.dat
+0 NOFILE
+0 FILE col_sub.ldr
+1 4 0 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+1 1 10 0 0 1 0 0 0 1 0 0 0 1 3001.dat
+0 NOFILE
