@@ -1,3 +1,6 @@
+# Agent artifacts
+.agent/
+
 # Python
 __pycache__/
 *.py[cod]
