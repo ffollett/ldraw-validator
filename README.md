@@ -67,6 +67,22 @@ src/validator/
 | 1 | Synthetic dataset generation | 🔜 Next |
 | 2 | ML training integration | 📋 Planned |
 
+## Rebuilding the Catalog
+
+If you need to update the parts database (e.g., after updating LDraw library or changing extraction logic), you can rebuild it safely:
+
+```bash
+# 1. Stop the web server (if running)
+# 2. Run the builder script
+python scripts/build_catalog.py
+```
+
+This process:
+- Updates existing parts with new data
+- Adds new parts
+- **Preserves** existing rendered images
+- Takes 2-5 minutes on average
+
 ## License
 
 MIT
