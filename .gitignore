@@ -51,6 +51,7 @@ pip_list.txt
 *.pkl
 cache/
 
-# Confidential docs
-docs/strategy.md
+
+# Project Data
+data/
 
