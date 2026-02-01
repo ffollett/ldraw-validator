@@ -4,7 +4,7 @@ import sys
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
-from validator.catalog import get_part, PART_CATALOG
+from validator.catalog_db import get_part
 
 COMMON_PARTS = [
     "3001", # Brick 2x4 (8 studs)

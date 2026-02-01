@@ -6,7 +6,7 @@ sys.path.append(str(Path(__file__).parent.parent / "src"))
 
 from validator.scene_graph import SceneGraph
 from validator.loader import Loader
-from validator.catalog import get_part
+from validator.catalog_db import get_part
 from validator.geometry import get_world_studs, get_world_antistuds
 from validator.connections import studs_connect
 

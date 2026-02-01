@@ -1,9 +1,8 @@
-from typing import List, Tuple
-from validator.parser import Placement
-from validator.catalog import get_part
-from validator.geometry import transform_point
-
+from typing import List, Tuple, Set, Any
 import math
+from validator.parser import Placement
+from validator.catalog_db import get_part
+from validator.geometry import transform_point, get_world_studs, get_world_antistuds
 
 def studs_connect(
     stud_pos: Tuple[float, float, float],
@@ -30,14 +29,6 @@ def studs_connect(
     return math.sqrt(dist_sq) < tolerance
 
 
-from typing import List, Tuple, Any, Set
-from validator.parser import Placement
-from validator.catalog import get_part
-from validator.geometry import get_world_studs, get_world_antistuds
-import math
-
-# ... (keep studs_connect) ...
-
 def build_connection_graph(scene_graph: Any) -> List[Tuple[int, int]]:
     """
     Build an adjacency list of connections between bricks using the Scene Graph.
@@ -53,10 +44,8 @@ def build_connection_graph(scene_graph: Any) -> List[Tuple[int, int]]:
         info_A = get_part(p_A.part_id)
         studs_A = get_world_studs(p_A, info_A)
         
-        print(f"Checking Part {i} ({p_A.part_id}) with {len(studs_A)} studs")
         for s_pos in studs_A:
             neighbors = scene_graph.query_point(s_pos, tolerance=1.0)
-            print(f"  Stud {s_pos} neighbors: {neighbors}")
             for j in neighbors:
                 if i == j: continue
                 p_B = scene_graph.get_placement(j)

@@ -24,7 +24,6 @@ class ValidationResult:
 
 
 from .parser import parse_ldraw, Placement
-from .parser import parse_ldraw, Placement
 from .collision import check_collisions
 from .connections import build_connection_graph
 from .grounding import validate_grounding
@@ -63,7 +62,7 @@ def validate_moc(file_path: Path) -> ValidationResult:
     
     # 1.5. Check Grid Alignment
     from validator.checks import validate_grid_alignment
-    from validator.catalog import get_part
+    from validator.catalog_db import get_part
     
     for i, p in enumerate(placements):
         try:

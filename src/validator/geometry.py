@@ -60,9 +60,9 @@ def get_world_antistuds(placement: Placement, part_info: Any) -> List[Tuple[floa
 def get_world_aabb(placement: Placement) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
     # Avoid circular import if possible, but for AABB we need catalog info.
     # Assuming the caller has access or we pass info separately.
-    # Because 'from validator.catalog import get_part' was at top level, it might cycle.
+    # Because 'from validator.catalog_db import get_part' was at top level, it might cycle.
     # Moving import inside if needed.
-    from validator.catalog import get_part
+    from validator.catalog_db import get_part
     info = get_part(placement.part_id)
     bx = info.bounds['x']
     by = info.bounds['y']

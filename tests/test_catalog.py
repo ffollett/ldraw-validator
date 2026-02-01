@@ -1,5 +1,5 @@
 import pytest
-from validator.catalog import get_part, STUD_PRIMITIVES
+from validator.catalog_db import get_part, STUD_PRIMITIVES
 
 class TestCatalogUnits:
     def test_stud_primitives_detection(self):

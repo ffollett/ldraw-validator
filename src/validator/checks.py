@@ -1,6 +1,6 @@
 from typing import List, Tuple
 from validator.parser import Placement
-from validator.catalog import PartInfo
+from validator.catalog_db import PartInfo
 from validator.geometry import get_world_studs
 
 def validate_grid_alignment(placement: Placement, part: PartInfo) -> List[str]:

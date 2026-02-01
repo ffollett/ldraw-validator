@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple
 from rtree import index
 from validator.parser import Placement
-from validator.catalog import get_part, PartInfo
+from validator.catalog_db import get_part, PartInfo
 from validator.geometry import get_world_aabb
 
 class SceneGraph:
