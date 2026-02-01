@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}Stats - LDraw{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>📊 Catalog Statistics</h1>
+</header>
+
+<div class="stats-dashboard">
+    <div class="stats-row">
+        <div class="stat-card large">
+            <div class="stat-value" id="total-parts">-</div>
+            <div class="stat-label">Total Parts</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="with-images">-</div>
+            <div class="stat-label">With Images</div>
+            <div class="stat-sublabel" id="image-percent">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="needs-images">-</div>
+            <div class="stat-label">Needs Images</div>
+        </div>
+    </div>
+
+    <div class="stats-section">
+        <h2>By Category</h2>
+        <div id="category-chart" class="bar-chart"></div>
+    </div>
+
+    <div class="stats-section">
+        <h2>Extraction Status</h2>
+        <div class="stats-row" id="extraction-stats"></div>
+    </div>
+
+    <div class="stats-section">
+        <h2>Image Coverage</h2>
+        <div class="progress-container">
+            <div class="progress-bar" id="image-progress"></div>
+        </div>
+        <p id="image-coverage-text"></p>
+    </div>
+
+    <div class="stats-section">
+        <h2>Database Schema</h2>
+        <p class="schema-description">Current fields stored for each part in the database:</p>
+        <div class="schema-table">
+            <table id="schema-table">
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody id="schema-tbody">
+                    <!-- Dynamically populated -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="stats-section">
+        <h2>Field Distributions - Categorical</h2>
+        <p class="schema-description">Distribution of categorical field values:</p>
+        <div id="categorical-charts" class="chart-grid"></div>
+    </div>
+
+    <div class="stats-section">
+        <h2>Field Distributions - Numeric</h2>
+        <p class="schema-description">Distribution of numeric field values:</p>
+        <div id="numeric-charts" class="chart-grid"></div>
+    </div>
+
+    <div class="stats-section">
+        <h2>Connection Point Statistics</h2>
+        <div class="stats-row" id="connection-stats"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Helper function to create histogram bins
+    function createHistogram(values, numBins = 20) {
+        if (values.length === 0) return [];
+
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const binSize = (max - min) / numBins;
+
+        const bins = Array(numBins).fill(0).map((_, i) => ({
+            min: min + i * binSize,
+            max: min + (i + 1) * binSize,
+            count: 0
+        }));
+
+        values.forEach(val => {
+            const binIndex = Math.min(Math.floor((val - min) / binSize), numBins - 1);
+            bins[binIndex].count++;
+        });
+
+        return bins;
+    }
+
+    // Render a pie chart
+    function renderPieChart(container, title, data) {
+        const total = data.reduce((sum, item) => sum + item.count, 0);
+
+        const colors = ['#667eea', '#764ba2', '#2ecc71', '#f39c12', '#e74c3c', '#3498db', '#9b59b6', '#1abc9c'];
+
+        let html = `
+            <div class="chart-card">
+                <h3>${title}</h3>
+                <div class="pie-chart">
+                    <svg viewBox="0 0 200 200" width="200" height="200">
+        `;
+
+        let currentAngle = -90; // Start at top
+        data.forEach((item, i) => {
+            const percentage = (item.count / total) * 100;
+            const angle = (item.count / total) * 360;
+            const endAngle = currentAngle + angle;
+
+            const x1 = 100 + 80 * Math.cos(currentAngle * Math.PI / 180);
+            const y1 = 100 + 80 * Math.sin(currentAngle * Math.PI / 180);
+            const x2 = 100 + 80 * Math.cos(endAngle * Math.PI / 180);
+            const y2 = 100 + 80 * Math.sin(endAngle * Math.PI / 180);
+
+            const largeArc = angle > 180 ? 1 : 0;
+
+            html += `
+                <path d="M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z"
+                      fill="${colors[i % colors.length]}"
+                      stroke="white"
+                      stroke-width="2">
+                    <title>${item.label}: ${item.count} (${percentage.toFixed(1)}%)</title>
+                </path>
+            `;
+
+            currentAngle = endAngle;
+        });
+
+        html += `
+                    </svg>
+                    <div class="pie-legend">
+        `;
+
+        data.forEach((item, i) => {
+            const percentage = (item.count / total) * 100;
+            html += `
+                <div class="legend-item">
+                    <span class="legend-color" style="background: ${colors[i % colors.length]}"></span>
+                    <span class="legend-label">${item.label}</span>
+                    <span class="legend-value">${item.count} (${percentage.toFixed(1)}%)</span>
+                </div>
+            `;
+        });
+
+        html += `
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML += html;
+    }
+
+    // Render a histogram
+    function renderHistogram(container, title, data) {
+        const bins = createHistogram(data.values, 20);
+        const maxCount = Math.max(...bins.map(b => b.count));
+
+        let html = `
+            <div class="chart-card">
+                <h3>${title}</h3>
+                <div class="histogram-stats">
+                    <span>Min: ${data.min.toFixed(2)}</span>
+                    <span>Max: ${data.max.toFixed(2)}</span>
+                    <span>Mean: ${data.mean.toFixed(2)}</span>
+                    <span>Count: ${data.values.length}</span>
+                </div>
+                <div class="histogram">
+        `;
+
+        bins.forEach(bin => {
+            const height = (bin.count / maxCount) * 100;
+            const label = bin.min.toFixed(1);
+            html += `
+                <div class="histogram-bar" style="height: ${height}%">
+                    <div class="bar-fill" style="height: 100%">
+                        <span class="bar-count">${bin.count}</span>
+                    </div>
+                    <div class="bar-label">${label}</div>
+                </div>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+
+        container.innerHTML += html;
+    }
+
+    async function loadSchema() {
+        const response = await fetch('/api/schema');
+        const data = await response.json();
+
+        const tbody = document.getElementById('schema-tbody');
+        tbody.innerHTML = '';
+
+        data.schema.forEach(field => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><code>${field.name}</code></td>
+                <td>${field.type}</td>
+                <td>${field.description}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    async function loadDistributions() {
+        const response = await fetch('/api/distributions');
+        const data = await response.json();
+
+        const categoricalContainer = document.getElementById('categorical-charts');
+        const numericContainer = document.getElementById('numeric-charts');
+
+        categoricalContainer.innerHTML = '';
+        numericContainer.innerHTML = '';
+
+        // Render categorical distributions as pie charts
+        const distributions = data.distributions;
+
+        if (distributions.category) {
+            renderPieChart(categoricalContainer, 'Category Distribution', distributions.category.values);
+        }
+
+        if (distributions.type) {
+            renderPieChart(categoricalContainer, 'Part Type Distribution (Top 20)', distributions.type.values);
+        }
+
+        if (distributions.ldraw_org) {
+            renderPieChart(categoricalContainer, 'LDRAW_ORG Distribution', distributions.ldraw_org.values);
+        }
+
+        if (distributions.extraction_status) {
+            renderPieChart(categoricalContainer, 'Extraction Status', distributions.extraction_status.values);
+        }
+
+        if (distributions.has_image) {
+            renderPieChart(categoricalContainer, 'Image Availability', distributions.has_image.values);
+        }
+
+        // Render numeric distributions as histograms
+        if (distributions.height) {
+            renderHistogram(numericContainer, 'Height Distribution', distributions.height);
+        }
+
+        if (distributions.stud_count) {
+            renderHistogram(numericContainer, 'Stud Count Distribution', distributions.stud_count);
+        }
+
+        if (distributions.anti_stud_count) {
+            renderHistogram(numericContainer, 'Anti-Stud Count Distribution', distributions.anti_stud_count);
+        }
+
+        if (distributions.technic_hole_count) {
+            renderHistogram(numericContainer, 'Technic Hole Count Distribution', distributions.technic_hole_count);
+        }
+    }
+
+    async function loadStats() {
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+
+        // Summary cards
+        document.getElementById('total-parts').textContent = data.total.toLocaleString();
+        document.getElementById('with-images').textContent = data.images.total_with_images.toLocaleString();
+        document.getElementById('needs-images').textContent = (data.total - data.images.total_with_images).toLocaleString();
+
+        const percent = (100 * data.images.total_with_images / data.total).toFixed(2);
+        document.getElementById('image-percent').textContent = `${percent}%`;
+
+        // Category chart
+        const categories = data.categories;
+        const chartContainer = document.getElementById('category-chart');
+        chartContainer.innerHTML = '';
+
+        const maxCount = Math.max(...Object.values(categories).map(c => c.count));
+
+        Object.entries(categories).sort((a, b) => b[1].count - a[1].count).forEach(([name, cat]) => {
+            const barWidth = (cat.count / maxCount * 100).toFixed(1);
+            const imageWidth = (cat.with_images / cat.count * 100).toFixed(1);
+
+            const row = document.createElement('div');
+            row.className = 'chart-row';
+            row.innerHTML = `
+                <div class="chart-label">${name}</div>
+                <div class="chart-bar-container">
+                    <div class="chart-bar" style="width: ${barWidth}%">
+                        <div class="chart-bar-images" style="width: ${imageWidth}%"></div>
+                    </div>
+                    <span class="chart-value">${cat.count.toLocaleString()}</span>
+                </div>
+            `;
+            chartContainer.appendChild(row);
+        });
+
+        // Extraction stats
+        const extractionDiv = document.getElementById('extraction-stats');
+        extractionDiv.innerHTML = `
+            <div class="stat-card success">
+                <div class="stat-value">${data.extraction.success.toLocaleString()}</div>
+                <div class="stat-label">✓ Success</div>
+            </div>
+            <div class="stat-card partial">
+                <div class="stat-value">${data.extraction.partial.toLocaleString()}</div>
+                <div class="stat-label">◐ Partial</div>
+            </div>
+            <div class="stat-card failed">
+                <div class="stat-value">${data.extraction.failed.toLocaleString()}</div>
+                <div class="stat-label">✗ Failed</div>
+            </div>
+        `;
+
+        // Image progress bar
+        document.getElementById('image-progress').style.width = `${percent}%`;
+        document.getElementById('image-coverage-text').textContent =
+            `${data.images.total_with_images.toLocaleString()} of ${data.total.toLocaleString()} parts have images (${percent}%)`;
+
+        // Connection point statistics
+        const connectionDiv = document.getElementById('connection-stats');
+        connectionDiv.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-value">${data.connections.parts_with_studs.toLocaleString()}</div>
+                <div class="stat-label">Parts with Studs</div>
+                <div class="stat-sublabel">${data.connections.total_studs.toLocaleString()} total</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${data.connections.parts_with_anti_studs.toLocaleString()}</div>
+                <div class="stat-label">Parts with Anti-Studs</div>
+                <div class="stat-sublabel">${data.connections.total_anti_studs.toLocaleString()} total</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${data.connections.parts_with_technic_holes.toLocaleString()}</div>
+                <div class="stat-label">Parts with Technic Holes</div>
+                <div class="stat-sublabel">${data.connections.total_technic_holes.toLocaleString()} total</div>
+            </div>
+        `;
+    }
+
+    // Load all data
+    Promise.all([loadSchema(), loadDistributions(), loadStats()]);
+</script>
+{% endblock %}

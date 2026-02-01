@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LDraw Catalog{% endblock %}</title>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/style.css">
+
+    <!-- Three.js for 3D rendering (using import maps for ESM) -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <nav class="navbar">
+        <a href="/" class="nav-logo">🧱 LDraw Catalog</a>
+        <div class="nav-links">
+            <a href="/" class="{% if active_page == 'catalog' %}active{% endif %}">Catalog</a>
+            <a href="/stats" class="{% if active_page == 'stats' %}active{% endif %}">Stats</a>
+            <a href="/batch" class="{% if active_page == 'batch' %}active{% endif %}">
+                Batch Render
+                <span id="batch-status-indicator" class="status-indicator hidden"></span>
+            </a>
+        </div>
+    </nav>
+
+    <main class="page-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // Poll for batch job status
+        async function updateBatchStatus() {
+            try {
+                const response = await fetch('/api/batch/jobs');
+                const data = await response.json();
+                const indicator = document.getElementById('batch-status-indicator');
+
+                // Check if any jobs are running
+                const runningJobs = data.jobs.filter(j => j.status === 'running');
+
+                if (runningJobs.length > 0) {
+                    indicator.classList.remove('hidden');
+                    indicator.classList.add('active');
+                    indicator.title = `${runningJobs.length} batch job(s) running`;
+                } else {
+                    indicator.classList.remove('active');
+                    indicator.classList.add('hidden');
+                }
+            } catch (error) {
+                // Silently fail if API not available
+            }
+        }
+
+        // Update immediately and then every 5 seconds
+        updateBatchStatus();
+        setInterval(updateBatchStatus, 5000);
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

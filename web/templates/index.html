@@ -1,0 +1,669 @@
+{% extends "base.html" %}
+
+{% block title %}Catalog - LDraw{% endblock %}
+
+{% block content %}
+<div class="app-container">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>Filters</h2>
+            <button id="reset-filters-btn" class="icon-btn" title="Reset all filters">↺</button>
+        </div>
+
+        <div class="filter-sections">
+            <!-- Search -->
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search parts..." autocomplete="off">
+            </div>
+
+            <!-- Types Filter -->
+            <div class="filter-group">
+                <div class="filter-header" data-toggle="type-filter">
+                    <label>Types</label>
+                    <span class="toggle-icon">−</span>
+                </div>
+                <div class="filter-content expanded" id="type-filter">
+                    <div class="filter-actions-mini">
+                        <a href="#" class="select-all-btn" data-filter="type">All</a>
+                        <a href="#" class="deselect-all-btn" data-filter="type">None</a>
+                    </div>
+                    <div class="filter-options-list" id="type-filter-options">
+                        <div class="loading-filters">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category Filter -->
+            <div class="filter-group">
+                <div class="filter-header" data-toggle="category-filter">
+                    <label>Category</label>
+                    <span class="toggle-icon">+</span>
+                </div>
+                <div class="filter-content hidden" id="category-filter">
+                    <div class="filter-actions-mini">
+                        <a href="#" class="select-all-btn" data-filter="category">All</a>
+                        <a href="#" class="deselect-all-btn" data-filter="category">None</a>
+                    </div>
+                    <div class="filter-options-list" id="category-filter-options">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- LDraw Org Filter -->
+            <div class="filter-group">
+                <div class="filter-header" data-toggle="ldraw-org-filter">
+                    <label>LDraw Org</label>
+                    <span class="toggle-icon">+</span>
+                </div>
+                <div class="filter-content hidden" id="ldraw-org-filter">
+                    <div class="filter-actions-mini">
+                        <a href="#" class="select-all-btn" data-filter="ldraw_org">All</a>
+                        <a href="#" class="deselect-all-btn" data-filter="ldraw_org">None</a>
+                    </div>
+                    <div class="filter-options-list" id="ldraw-org-filter-options">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Filters -->
+            <div class="filter-group">
+                <div class="filter-header" data-toggle="status-filter">
+                    <label>Status</label>
+                    <span class="toggle-icon">−</span>
+                </div>
+                <div class="filter-content expanded" id="status-filter">
+                    <div class="filter-section-label">Image</div>
+                    <div class="filter-options-list">
+                        <label class="checkbox-row"><input type="checkbox" name="image" value="yes" checked> <span>Has
+                                Image</span></label>
+                        <label class="checkbox-row"><input type="checkbox" name="image" value="no" checked>
+                            <span>Missing Image</span></label>
+                    </div>
+
+                    <div class="filter-section-label" style="margin-top: 10px;">Extraction</div>
+                    <div class="filter-options-list">
+                        <label class="checkbox-row"><input type="checkbox" name="extraction" value="success" checked>
+                            <span>✓ Success</span></label>
+                        <label class="checkbox-row"><input type="checkbox" name="extraction" value="partial" checked>
+                            <span>◐ Partial</span></label>
+                        <label class="checkbox-row"><input type="checkbox" name="extraction" value="failed" checked>
+                            <span>✗ Failed</span></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="catalog-main">
+        <header class="catalog-header">
+            <div class="header-left">
+                <h1>Part Catalog</h1>
+                <div id="stats-summary" class="stats-pill">Loading stats...</div>
+            </div>
+            <div class="header-right">
+                <div class="pagination-controls">
+                    <button id="prev-page" class="nav-btn" disabled>←</button>
+                    <span id="page-info">Page 1</span>
+                    <button id="next-page" class="nav-btn">→</button>
+                </div>
+            </div>
+        </header>
+
+        <div id="catalog-grid" class="catalog-grid">
+            <!-- Cards go here -->
+        </div>
+
+        <footer class="catalog-footer">
+            <button id="load-more-btn" class="hidden">Load More</button> <!-- Future enhancement -->
+        </footer>
+    </main>
+</div>
+
+<div id="modal" class="modal hidden">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <div id="modal-body"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/ldraw_viewer.js"></script>
+<script>
+    let currentPage = 1;
+    let totalPages = 1;
+    let currentFilters = {
+        types: [],
+        ldraw_orgs: [],
+        categories: [],
+        images: ['yes', 'no'],
+        extractions: ['success', 'partial', 'failed'],
+        search: ''
+    };
+    let filtersLoaded = false;
+    let searchDebounceTimer;
+
+    function getExtractionBadge(status) {
+        switch (status) {
+            case 'success': return '<span class="badge extraction-success" title="Success">✓</span>';
+            case 'partial': return '<span class="badge extraction-partial" title="Partial">◐</span>';
+            case 'failed': return '<span class="badge extraction-failed" title="Failed">✗</span>';
+            default: return '';
+        }
+    }
+
+    async function loadStats() {
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+        const coverage = (100 * data.images.total_with_images / data.images.total_parts).toFixed(1);
+        const statsEl = document.getElementById('stats-summary');
+        if (statsEl) {
+            statsEl.innerHTML = `
+                ${data.total.toLocaleString()} parts · ${coverage}% scanned
+            `;
+        }
+    }
+
+    async function loadParts() {
+        if (!filtersLoaded) {
+            setTimeout(loadParts, 100);
+            return;
+        }
+
+        const params = new URLSearchParams({
+            types: currentFilters.types.length ? currentFilters.types.join(',') : '_none_',
+            ldraw_orgs: currentFilters.ldraw_orgs.length ? currentFilters.ldraw_orgs.join(',') : '_none_',
+            categories: currentFilters.categories.length ? currentFilters.categories.join(',') : '_none_',
+            images: currentFilters.images.length ? currentFilters.images.join(',') : '_none_',
+            extractions: currentFilters.extractions.length ? currentFilters.extractions.join(',') : '_none_',
+            search: currentFilters.search,
+            page: currentPage,
+            limit: 50
+        });
+
+        const grid = document.getElementById('catalog-grid');
+        // Skeleton / Loading state
+        // grid.innerHTML = '<div class="loading-grid">Loading...</div>'; 
+
+        try {
+            const response = await fetch(`/api/parts?${params}`);
+            const data = await response.json();
+
+            grid.innerHTML = '';
+
+            if (data.parts.length === 0) {
+                grid.innerHTML = '<div class="no-results">No parts found matching your filters.</div>';
+                return;
+            }
+
+            data.parts.forEach(part => {
+                const card = document.createElement('div');
+                card.className = 'part-card';
+                card.dataset.partId = part.part_id;
+
+                // Preload image or lazy load could be added here
+                const imgUrl = `/api/images/${part.part_id}.png`;
+
+                card.innerHTML = `
+                    <div class="card-image-wrapper">
+                        <img src="${imgUrl}" alt="${part.part_name}" loading="lazy" />
+                    </div>
+                    <div class="part-info">
+                        <div class="badges">
+                            <span class="category">${part.type || 'Unknown'}</span>
+                            ${getExtractionBadge(part.extraction_status)}
+                        </div>
+                        <strong title="${part.part_name}">${part.part_name}</strong>
+                         <div class="meta">
+                            <span>${part.part_id}</span>
+                            <span>${part.stud_count} studs</span>
+                        </div>
+                    </div>
+                `;
+                card.addEventListener('click', () => showDetail(part.part_id));
+                grid.appendChild(card);
+            });
+
+            totalPages = data.pagination.pages;
+            document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage === totalPages;
+        } catch (e) {
+            console.error("Failed to load parts", e);
+        }
+    }
+
+    // --- 3D / Modal Logic (Same as before but refined) ---
+    let renderTimer = null;
+    let renderStartTime = null;
+
+    async function showDetail(partId) {
+        const response = await fetch(`/api/parts/${partId}`);
+        const part = await response.json();
+
+        const modal = document.getElementById('modal');
+        const body = document.getElementById('modal-body');
+
+        body.innerHTML = `
+            <div class="modal-layout">
+                <div class="modal-image-section">
+                     <div class="modal-header-mobile">
+                        <h2>${part.part_name}</h2>
+                        <div class="part-id-subtitle">${part.part_id}</div>
+                    </div>
+                    
+                    <div id="view-container">
+                        <img id="part-image" src="/api/images/${part.part_id}.png?t=${Date.now()}" alt="${part.part_name}" />
+                        <div id="viewer-3d" class="viewer-3d hidden"></div>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                        <button id="toggle-3d-btn" class="action-btn">View 3D Model</button>
+                        <button id="generate-btn" class="generate-btn">Regenerate Image</button>
+                    </div>
+                    <div id="render-status"></div>
+                </div>
+                
+                <div class="modal-details-section">
+                    <h2 class="desktop-only">${part.part_name}</h2>
+                    <div class="part-id-subtitle desktop-only">${part.part_id}</div>
+                    
+                    <table>
+                        <tr><th>Type</th><td>${part.type || 'Unknown'}</td></tr>
+                        <tr><th>Category</th><td>${part.category || 'None'}</td></tr>
+                        <tr><th>LDraw Org</th><td>${part.ldraw_org || 'None'}</td></tr>
+                        <tr><th>Dimensions</th><td>H: ${part.height.toFixed(2)}</td></tr>
+                        <tr><th>Connectivity</th><td>${part.studs.length} studs, ${part.anti_studs.length} anti-studs</td></tr>
+                        <tr><th>Status</th><td>${part.extraction_status}</td></tr>
+                    </table>
+
+                    <div class="ldraw-source-container">
+                        <details>
+                            <summary>View LDraw Source</summary>
+                            <pre class="ldraw-source">${part.raw_content}</pre>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Set up event handlers
+        let viewer3D = null;
+        let is3DView = false;
+
+        const toggle3DBtn = document.getElementById('toggle-3d-btn');
+        const partImage = document.getElementById('part-image');
+        const viewer3DContainer = document.getElementById('viewer-3d');
+
+        toggle3DBtn.addEventListener('click', async () => {
+            is3DView = !is3DView;
+            if (is3DView) {
+                partImage.classList.add('hidden');
+                viewer3DContainer.classList.remove('hidden');
+                toggle3DBtn.textContent = 'Switch to 2D Image';
+                if (!viewer3D) {
+                    try {
+                        viewer3D = new LDrawViewer('viewer-3d');
+                        await viewer3D.loadPart(part.part_id);
+                    } catch (error) {
+                        console.error('Failed to load 3D model:', error);
+                        is3DView = false;
+                        partImage.classList.remove('hidden');
+                        viewer3DContainer.classList.add('hidden');
+                        toggle3DBtn.textContent = 'View 3D Model';
+                    }
+                }
+            } else {
+                partImage.classList.remove('hidden');
+                viewer3DContainer.classList.add('hidden');
+                toggle3DBtn.textContent = 'View 3D Model';
+            }
+        });
+
+        document.getElementById('generate-btn').addEventListener('click', () => generateImage(part.part_id));
+
+        modal.classList.remove('hidden');
+
+        window.currentModalCleanup = () => {
+            document.getElementById('modal').classList.add('hidden');
+            if (renderTimer) clearInterval(renderTimer);
+            if (viewer3D) {
+                viewer3D.dispose();
+                viewer3D = null;
+            }
+            window.currentModalCleanup = null; // Clear the cleanup function
+        };
+    }
+
+    // --- Filter Logic ---
+
+    // Toggle Accordions
+    document.querySelectorAll('[data-toggle]').forEach(header => {
+        header.addEventListener('click', () => {
+            // Prevent triggering if clicking toggle-icon explicitly (though header click covers it)
+            const targetId = header.dataset.toggle;
+            const content = document.getElementById(targetId);
+            const icon = header.querySelector('.toggle-icon');
+
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                content.classList.add('expanded');
+                icon.textContent = '−';
+            } else {
+                content.classList.add('hidden');
+                content.classList.remove('expanded');
+                icon.textContent = '+';
+            }
+        });
+    });
+
+    // Helper: Update the summary text in the accordion header
+    function updateFilterSubtitle(filterName, containerId) {
+        const checkboxes = document.querySelectorAll(`input[name="${filterName}"]`);
+        const checked = document.querySelectorAll(`input[name="${filterName}"]:checked`);
+        const header = document.querySelector(`[data-toggle="${containerId}"]`);
+
+        let subtitle = header.querySelector('.filter-summary');
+        if (!subtitle) {
+            subtitle = document.createElement('span');
+            subtitle.className = 'filter-summary';
+            subtitle.style.fontSize = '0.8rem';
+            subtitle.style.color = '#6b7280';
+            subtitle.style.marginLeft = '0.5rem';
+            header.children[0].appendChild(subtitle);
+        }
+
+        if (checked.length === 0) {
+            subtitle.textContent = '(None)';
+        } else if (checked.length === checkboxes.length) {
+            subtitle.textContent = '(All)';
+        } else {
+            // Show first few items
+            const labels = Array.from(checked).map(cb => cb.value).slice(0, 2);
+            let text = labels.join(', ');
+            if (checked.length > 2) text += ', ...';
+            subtitle.textContent = `(${text})`;
+        }
+    }
+
+    function getSelectedValues(filterName) {
+        const checkboxes = document.querySelectorAll(`input[name="${filterName}"]`);
+        const checked = document.querySelectorAll(`input[name="${filterName}"]:checked`);
+
+        // If all are selected, we return explicit null to indicate "All" (No filter)
+        if (checkboxes.length > 0 && checked.length === checkboxes.length) {
+            return null;
+        }
+        return Array.from(checked).map(cb => cb.value);
+    }
+
+    function updateFilters() {
+        currentFilters.types = getSelectedValues('type');
+        currentFilters.ldraw_orgs = getSelectedValues('ldraw_org');
+        currentFilters.categories = getSelectedValues('category');
+        currentFilters.images = getSelectedValues('image');
+        currentFilters.extractions = getSelectedValues('extraction');
+
+        updateFilterSubtitle('type', 'type-filter');
+        updateFilterSubtitle('ldraw_org', 'ldraw-org-filter');
+        updateFilterSubtitle('category', 'category-filter');
+
+        // For shared status filter container, avoid double updates or check specifically
+        // Since image and extraction share 'status-filter', we can just update it once or update generic status
+        updateFilterSubtitle('image', 'status-filter');
+
+        currentPage = 1;
+        loadParts();
+    }
+
+    async function loadParts() {
+        if (!filtersLoaded) {
+            setTimeout(loadParts, 100);
+            return;
+        }
+
+        const params = new URLSearchParams({
+            search: currentFilters.search,
+            page: currentPage,
+            limit: 50
+        });
+
+        // Helper to append params safely
+        const appendParam = (key, val) => {
+            if (val === null) {
+                // All selected -> Don't send param (Backend defaults to Show All)
+            } else if (val.length === 0) {
+                params.append(key, '_none_'); // Explicitly None
+            } else {
+                params.append(key, val.join(','));
+            }
+        };
+
+        appendParam('types', currentFilters.types);
+        appendParam('ldraw_orgs', currentFilters.ldraw_orgs);
+        appendParam('categories', currentFilters.categories);
+        appendParam('images', currentFilters.images);
+        appendParam('extractions', currentFilters.extractions);
+
+        const grid = document.getElementById('catalog-grid');
+
+        try {
+            const response = await fetch(`/api/parts?${params}`);
+            const data = await response.json();
+
+            grid.innerHTML = '';
+
+            // Update Stats / Counter
+            const statsEl = document.getElementById('stats-summary');
+            if (statsEl) {
+                if (data.parts.length === 0) {
+                    statsEl.textContent = '0 results';
+                } else {
+                    // Note: total should be filtered total
+                    const start = (data.pagination.page - 1) * data.pagination.limit + 1;
+                    const end = Math.min(data.pagination.page * data.pagination.limit, data.pagination.total);
+                    statsEl.textContent = `Showing ${start}-${end} of ${data.pagination.total.toLocaleString()} parts`;
+                }
+            }
+
+            if (data.parts.length === 0) {
+                grid.innerHTML = '<div class="no-results">No parts found matching your filters.</div>';
+                document.getElementById('page-info').textContent = 'Page 1 of 1';
+                document.getElementById('prev-page').disabled = true;
+                document.getElementById('next-page').disabled = true;
+                return;
+            }
+
+            data.parts.forEach(part => {
+                const card = document.createElement('div');
+                card.className = 'part-card';
+                card.dataset.partId = part.part_id;
+
+                const imgUrl = `/api/images/${part.part_id}.png`;
+
+                card.innerHTML = `
+                    <div class="card-image-wrapper">
+                        <img src="${imgUrl}" alt="${part.part_name}" loading="lazy" />
+                    </div>
+                    <div class="part-info">
+                        <div class="badges">
+                            <span class="category">${part.type || 'Unknown'}</span>
+                            ${getExtractionBadge(part.extraction_status)}
+                        </div>
+                        <strong title="${part.part_name}">${part.part_name}</strong>
+                         <div class="meta">
+                            <span>${part.part_id}</span>
+                            <span>${part.stud_count} studs</span>
+                        </div>
+                    </div>
+                `;
+                card.addEventListener('click', () => showDetail(part.part_id));
+                grid.appendChild(card);
+            });
+
+            totalPages = Math.max(1, data.pagination.pages);
+            currentPage = data.pagination.page;
+
+            document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage === totalPages;
+
+        } catch (e) {
+            console.error("Failed to load parts", e);
+            grid.innerHTML = '<div class="error-msg">Failed to load parts.</div>';
+        }
+    }
+
+    async function loadFilters() {
+        try {
+            const response = await fetch('/api/distributions');
+            const data = await response.json();
+
+            // Helper to populate list
+            const populate = (containerId, items, name) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                if (items) {
+                    items.forEach(item => {
+                        const label = document.createElement('label');
+                        label.className = 'checkbox-row';
+                        label.innerHTML = `
+                            <input type="checkbox" name="${name}" value="${item.label}" checked>
+                            <span>${item.label} <span style="color:#9ca3af;font-size:0.8em">(${item.count})</span></span>
+                        `;
+                        container.appendChild(label);
+                    });
+                }
+            };
+
+            populate('type-filter-options', data.distributions.type?.values, 'type');
+            populate('ldraw-org-filter-options', data.distributions.ldraw_org?.values, 'ldraw_org');
+            populate('category-filter-options', data.distributions.category?.values, 'category');
+
+            // Add listener to new inputs
+            document.querySelectorAll('.filter-options-list input').forEach(cb => {
+                cb.addEventListener('change', updateFilters);
+            });
+
+            // Initialize state
+            filtersLoaded = true;
+            updateFilters(); // Call updateFilters to set initial state and load parts
+
+        } catch (error) {
+            console.error("Failed to load filters:", error);
+        }
+    }
+
+    // Select/Deselect All Handlers
+    document.querySelectorAll('.select-all-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const filterName = e.target.dataset.filter;
+            document.querySelectorAll(`input[name="${filterName}"]`).forEach(cb => cb.checked = true);
+            updateFilters();
+        });
+    });
+
+    document.querySelectorAll('.deselect-all-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const filterName = e.target.dataset.filter;
+            document.querySelectorAll(`input[name="${filterName}"]`).forEach(cb => cb.checked = false);
+            updateFilters();
+        });
+    });
+
+    // Status filters (static)
+    document.querySelectorAll('#status-filter input').forEach(cb => {
+        cb.addEventListener('change', updateFilters);
+    });
+
+    // Reset All
+    document.getElementById('reset-filters-btn').addEventListener('click', () => {
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+        document.getElementById('search-input').value = '';
+        currentFilters.search = '';
+        updateFilters();
+    });
+
+    // Search with Debounce
+    const searchInput = document.getElementById('search-input');
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            currentFilters.search = e.target.value;
+            currentPage = 1;
+            loadParts();
+        }, 300); // 300ms debounce
+    });
+    // Remove old search button listener if it existed
+
+    // Pagination
+    document.getElementById('prev-page').addEventListener('click', () => {
+        if (currentPage > 1) { currentPage--; loadParts(); }
+    });
+    document.getElementById('next-page').addEventListener('click', () => {
+        if (currentPage < totalPages) { currentPage++; loadParts(); }
+    });
+
+    // Modal Close
+    document.querySelector('.close').addEventListener('click', () => {
+        if (window.currentModalCleanup) window.currentModalCleanup();
+    });
+
+    // Close modal on click outside
+    document.getElementById('modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('modal')) {
+            if (window.currentModalCleanup) window.currentModalCleanup();
+        }
+    });
+
+    // --- Image Generation Logic (Same as before) ---
+    async function generateImage(partId) {
+        // ... code from previous version ...
+        const statusDiv = document.getElementById('render-status');
+        const generateBtn = document.getElementById('generate-btn');
+        generateBtn.disabled = true;
+        renderStartTime = Date.now();
+        renderTimer = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - renderStartTime) / 1000);
+            statusDiv.innerHTML = `<p class="render-progress">Processing... ${elapsed}s</p>`;
+        }, 100);
+
+        try {
+            const response = await fetch(`/api/parts/${partId}/render`, { method: 'POST' });
+            const data = await response.json();
+            clearInterval(renderTimer);
+
+            if (data.success) {
+                statusDiv.innerHTML = '<p class="render-success">Done!</p>';
+                document.getElementById('part-image').src = `${data.image_url}?t=${Date.now()}`;
+                generateBtn.style.display = 'none';
+                // Update grid card if visible
+                const card = document.querySelector(`[data-part-id="${partId}"]`);
+                if (card) {
+                    const img = card.querySelector('img');
+                    img.src = `${data.image_url}?t=${Date.now()}`;
+                    // If we had a no-image badge, strict reload of filters will fix it, 
+                    // or we can manipulate DOM. Let's just leave it simple.
+                }
+                loadStats();
+            } else {
+                statusDiv.innerHTML = `<p class="render-error">Error: ${data.error}</p>`;
+                generateBtn.disabled = false;
+            }
+        } catch (error) {
+            clearInterval(renderTimer);
+            statusDiv.innerHTML = `<p class="render-error">Network error</p>`;
+            generateBtn.disabled = false;
+        }
+    }
+
+    // Init
+    loadStats();
+    loadFilters();
+    loadParts();
+</script>
+{% endblock %}

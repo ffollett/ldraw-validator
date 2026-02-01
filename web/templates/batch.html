@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Render - LDraw{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>🎨 Batch Render</h1>
+</header>
+
+<div class="batch-container">
+    <div class="batch-controls">
+        <h2>Filters</h2>
+        <div class="filter-group">
+            <label>Types</label>
+            <div class="filter-controls">
+                <button class="filter-toggle-btn dropdown-toggle" data-target="batch-type">▼ Select
+                    Types</button>
+                <div class="filter-dropdown hidden" id="batch-type-dropdown">
+                    <div class="filter-actions">
+                        <button type="button" class="select-all-btn" data-filter="type">All</button>
+                        <button type="button" class="deselect-all-btn" data-filter="type">None</button>
+                    </div>
+                    <div class="filter-options" id="batch-type-options">
+                        <div class="loading-filters">Loading types...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label>LDraw Org</label>
+            <div class="filter-controls">
+                <button class="filter-toggle-btn dropdown-toggle" data-target="batch-org">▼ Select
+                    Org</button>
+                <div class="filter-dropdown hidden" id="batch-org-dropdown">
+                    <div class="filter-actions">
+                        <button type="button" class="select-all-btn" data-filter="ldraw_org">All</button>
+                        <button type="button" class="deselect-all-btn" data-filter="ldraw_org">None</button>
+                    </div>
+                    <div class="filter-options" id="batch-org-options">
+                        <div class="loading-filters">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <label>Category</label>
+            <div class="filter-controls">
+                <button class="filter-toggle-btn dropdown-toggle" data-target="batch-category">▼ Select
+                    Category</button>
+                <div class="filter-dropdown hidden" id="batch-category-dropdown">
+                    <div class="filter-actions">
+                        <button type="button" class="select-all-btn" data-filter="category">All</button>
+                        <button type="button" class="deselect-all-btn" data-filter="category">None</button>
+                    </div>
+                    <div class="filter-options" id="batch-category-options">
+                        <div class="loading-filters">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label>Image Status</label>
+            <div class="filter-controls">
+                <button class="filter-toggle-btn dropdown-toggle" data-target="batch-image">▼ Select Status</button>
+                <div class="filter-dropdown hidden" id="batch-image-dropdown">
+                    <div class="filter-actions">
+                        <button type="button" class="select-all-btn" data-filter="image">All</button>
+                        <button type="button" class="deselect-all-btn" data-filter="image">None</button>
+                    </div>
+                    <div class="filter-options">
+                        <label><input type="checkbox" name="image" value="yes"> Has Image</label>
+                        <label><input type="checkbox" name="image" value="no" checked> Needs Image</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label>Extraction</label>
+            <div class="filter-controls">
+                <button class="filter-toggle-btn dropdown-toggle" data-target="batch-extraction">▼ Select
+                    Extraction</button>
+                <div class="filter-dropdown hidden" id="batch-extraction-dropdown">
+                    <div class="filter-actions">
+                        <button type="button" class="select-all-btn" data-filter="extraction">All</button>
+                        <button type="button" class="deselect-all-btn" data-filter="extraction">None</button>
+                    </div>
+                    <div class="filter-options">
+                        <label><input type="checkbox" name="extraction" value="success" checked> ✓ Success</label>
+                        <label><input type="checkbox" name="extraction" value="partial" checked> ◐ Partial</label>
+                        <label><input type="checkbox" name="extraction" value="failed" checked> ✗ Failed</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="filter-group">
+            <label>Limit</label>
+            <input type="number" id="batch-limit" value="100" min="1" max="10000" />
+        </div>
+
+        <button id="start-batch" class="batch-btn">▶ Start Batch</button>
+        <button id="stop-batch" class="batch-btn stop hidden">■ Stop</button>
+
+        <div id="batch-progress" class="batch-progress hidden">
+            <div class="progress-container">
+                <div class="progress-bar" id="batch-progress-bar"></div>
+            </div>
+            <p id="batch-progress-text"></p>
+        </div>
+    </div>
+
+    <div class="batch-output">
+        <h2>Live Output</h2>
+        <div id="batch-log" class="log-output">
+            <p class="log-placeholder">Click "Start Batch" to begin rendering...</p>
+        </div>
+    </div>
+</div>
+
+<div class="batch-history">
+    <h2>Job History</h2>
+    <div id="history-list"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentJobId = null;
+    let eventSource = null;
+
+    function getSelectedValues(filterName) {
+        const checkboxes = document.querySelectorAll(`input[name="${filterName}"]:checked`);
+        return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    // Load filters dynamically
+    fetch('/api/distributions')
+        .then(r => r.json())
+        .then(data => {
+            // Populate Type filters
+            const typeContainer = document.getElementById('batch-type-options');
+            typeContainer.innerHTML = '';
+
+            if (data.distributions.type && data.distributions.type.values) {
+                data.distributions.type.values.forEach(item => {
+                    const label = document.createElement('label');
+                    label.innerHTML = `<input type="checkbox" name="type" value="${item.label}" checked> ${item.label} (${item.count})`;
+                    typeContainer.appendChild(label);
+                });
+
+                // Add "Other"
+                const otherLabel = document.createElement('label');
+                otherLabel.innerHTML = `<input type="checkbox" name="type" value="Other" checked> Other`;
+                typeContainer.appendChild(otherLabel);
+            }
+
+            // Populate Org filters
+            const orgContainer = document.getElementById('batch-org-options');
+            orgContainer.innerHTML = '';
+
+            if (data.distributions.ldraw_org && data.distributions.ldraw_org.values) {
+                data.distributions.ldraw_org.values.forEach(item => {
+                    const label = document.createElement('label');
+                    label.innerHTML = `<input type="checkbox" name="ldraw_org" value="${item.label}" checked> ${item.label} (${item.count})`;
+                    orgContainer.appendChild(label);
+                });
+            }
+
+            // Populate Category filters
+            const catContainer = document.getElementById('batch-category-options');
+            catContainer.innerHTML = '';
+
+            if (data.distributions.category && data.distributions.category.values) {
+                data.distributions.category.values.forEach(item => {
+                    const label = document.createElement('label');
+                    label.innerHTML = `<input type="checkbox" name="category" value="${item.label}" checked> ${item.label} (${item.count})`;
+                    catContainer.appendChild(label);
+                });
+            }
+        });
+
+    // Toggle dropdown visibility
+    document.querySelectorAll('.filter-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const target = e.target.dataset.target;
+            const dropdown = document.getElementById(`${target}-dropdown`);
+            dropdown.classList.toggle('hidden');
+            // Update arrow but keep text
+            const text = e.target.textContent.substring(2);
+            e.target.textContent = (dropdown.classList.contains('hidden') ? '▼ ' : '▲ ') + text;
+        });
+    });
+
+    // Select all / Deselect all
+    document.querySelectorAll('.select-all-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const filterName = e.target.dataset.filter;
+            document.querySelectorAll(`input[name="${filterName}"]`).forEach(cb => cb.checked = true);
+        });
+    });
+
+    document.querySelectorAll('.deselect-all-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const filterName = e.target.dataset.filter;
+            document.querySelectorAll(`input[name="${filterName}"]`).forEach(cb => cb.checked = false);
+        });
+    });
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.filter-group')) {
+            document.querySelectorAll('.filter-dropdown').forEach(dropdown => {
+                dropdown.classList.add('hidden');
+            });
+            document.querySelectorAll('.filter-toggle-btn').forEach(btn => {
+                const text = btn.textContent.substring(2);
+                btn.textContent = '▼ ' + text;
+            });
+        }
+    });
+
+    function loadHistory() {
+        fetch('/api/batch/jobs')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('history-list');
+                if (data.jobs.length === 0) {
+                    container.innerHTML = '<p class="no-history">No batch jobs yet.</p>';
+                    return;
+                }
+
+                container.innerHTML = data.jobs.map(job => `
+                    <details class="history-item">
+                        <summary>
+                            <span class="history-time">${new Date(job.started).toLocaleString()}</span>
+                            <span class="history-count">${job.success} rendered</span>
+                            <span class="history-status ${job.status}">${job.status}</span>
+                        </summary>
+                        <div class="history-details">
+                            <p><strong>Filters:</strong> ${job.filters}</p>
+                            <p><strong>Total:</strong> ${job.total} | <strong>Success:</strong> ${job.success} | <strong>Failed:</strong> ${job.failed}</p>
+                            <pre class="history-log">${job.log.join('\n')}</pre>
+                        </div>
+                    </details>
+                `).join('');
+            });
+    }
+
+    async function startBatch() {
+        const types = getSelectedValues('type').join(',');
+        const ldraw_orgs = getSelectedValues('ldraw_org').join(',');
+        const categories = getSelectedValues('category').join(',');
+        const images = getSelectedValues('image').join(',');
+        const extractions = getSelectedValues('extraction').join(',');
+        const limit = parseInt(document.getElementById('batch-limit').value);
+
+        if (!types && !images && !extractions && !ldraw_orgs && !categories) {
+            alert('Please select at least one filter option');
+            return;
+        }
+
+        const response = await fetch('/api/batch/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ types, ldraw_orgs, categories, images, extractions, limit })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            alert(error.error || 'Failed to start batch');
+            return;
+        }
+
+        const data = await response.json();
+        currentJobId = data.job_id;
+
+        document.getElementById('start-batch').classList.add('hidden');
+        document.getElementById('stop-batch').classList.remove('hidden');
+        document.getElementById('batch-progress').classList.remove('hidden');
+
+        const logDiv = document.getElementById('batch-log');
+        logDiv.innerHTML = `<div class="log-line">Starting batch job for ${data.total} parts...</div>`;
+
+        // Connect to SSE stream
+        eventSource = new EventSource(`/api/batch/status/${currentJobId}`);
+
+        eventSource.onmessage = (event) => {
+            const update = JSON.parse(event.data);
+
+            if (update.error) {
+                logDiv.innerHTML += `<div class="log-line error">${update.error}</div>`;
+                eventSource.close();
+                return;
+            }
+
+            // Update progress
+            const progress = (update.completed / update.total * 100).toFixed(1);
+            document.getElementById('batch-progress-bar').style.width = `${progress}%`;
+            document.getElementById('batch-progress-text').textContent =
+                `${update.completed} / ${update.total} (${update.success} ✓, ${update.failed} ✗)`;
+
+            // Append new log lines
+            update.new_log.forEach(line => {
+                const logLine = document.createElement('div');
+                logLine.className = 'log-line';
+                logLine.textContent = line;
+                logDiv.appendChild(logLine);
+            });
+            logDiv.scrollTop = logDiv.scrollHeight;
+
+            // Check if complete
+            if (update.status === 'completed') {
+                eventSource.close();
+                document.getElementById('stop-batch').classList.add('hidden');
+                document.getElementById('start-batch').classList.remove('hidden');
+                loadHistory();
+            }
+        };
+
+        eventSource.onerror = () => {
+            logDiv.innerHTML += '<div class="log-line error">Connection lost</div>';
+            eventSource.close();
+            document.getElementById('stop-batch').classList.add('hidden');
+            document.getElementById('start-batch').classList.remove('hidden');
+        };
+    }
+
+    async function stopBatch() {
+        if (!currentJobId) return;
+
+        await fetch(`/api/batch/stop/${currentJobId}`, { method: 'POST' });
+
+        if (eventSource) {
+            eventSource.close();
+        }
+    }
+
+    document.getElementById('start-batch').addEventListener('click', startBatch);
+    document.getElementById('stop-batch').addEventListener('click', stopBatch);
+
+    // Load history on page load
+    loadHistory();
+
+    // Refresh history periodically
+    setInterval(loadHistory, 10000);
+</script>
+{% endblock %}
