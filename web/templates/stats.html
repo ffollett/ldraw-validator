@@ -256,6 +256,10 @@
             renderPieChart(categoricalContainer, 'Image Availability', distributions.has_image.values);
         }
 
+        if (distributions.connection_types) {
+            renderPieChart(categoricalContainer, 'Connection Types (Shadow Lib)', distributions.connection_types.values);
+        }
+
         // Render numeric distributions as histograms
         if (distributions.height) {
             renderHistogram(numericContainer, 'Height Distribution', distributions.height);

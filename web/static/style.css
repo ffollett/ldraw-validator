@@ -460,20 +460,60 @@ button,
 
 /* Modal Improvements */
 .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease;
+}
+
+.modal.hidden {
+    display: none;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .modal-content {
+    background: white;
+    width: 90%;
+    max-width: 1000px;
+    max-height: 90vh;
     border-radius: 1rem;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     border: 1px solid rgba(255, 255, 255, 0.2);
     overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-layout {
-    padding: 0;
-    gap: 0;
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Close button positioning */
+.modal .close {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    font-size: 2rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    z-index: 10;
+    line-height: 1;
+}
+
+.modal .close:hover {
+    color: var(--text-main);
 }
 
 .modal-image-section {
@@ -578,6 +618,64 @@ button,
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Part Modal Additions */
+.part-link-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.25rem 0;
+}
+
+.part-link {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    background: #e0e7ff;
+    color: var(--primary);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.part-link:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.metadata-section {
+    margin: 1.5rem 0;
+}
+
+.metadata-section h4 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+}
+
+.metadata-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.metadata-item {
+    font-size: 0.85rem;
+    background: #f3f4f6;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #4b5563;
+    border-left: 3px solid #d1d5db;
+}
+
+.text-subtle {
+    color: #9ca3af;
+    font-size: 0.85rem;
+    font-style: italic;
 }
 
 /* Source View */

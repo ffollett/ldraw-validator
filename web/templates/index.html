@@ -214,11 +214,12 @@
                         <div class="badges">
                             <span class="category">${part.type || 'Unknown'}</span>
                             ${getExtractionBadge(part.extraction_status)}
+                            ${part.connection_count === 0 && part.extraction_status === 'success' ? '<span class="badge warning" title="Missing Shadow Data">⚠️</span>' : ''}
                         </div>
                         <strong title="${part.part_name}">${part.part_name}</strong>
                          <div class="meta">
                             <span>${part.part_id}</span>
-                            <span>${part.stud_count} studs</span>
+                            <span>${part.connection_count > 0 ? part.connection_count + ' Conn' : part.stud_count + ' studs'}</span>
                         </div>
                     </div>
                 `;
@@ -275,13 +276,42 @@
                         <tr><th>Category</th><td>${part.category || 'None'}</td></tr>
                         <tr><th>LDraw Org</th><td>${part.ldraw_org || 'None'}</td></tr>
                         <tr><th>Dimensions</th><td>H: ${part.height.toFixed(2)}</td></tr>
-                        <tr><th>Connectivity</th><td>${part.studs.length} studs, ${part.anti_studs.length} anti-studs</td></tr>
+                        <tr><th>Dimensions</th><td>H: ${part.height.toFixed(2)}</td></tr>
+                        <tr><th>Connectivity</th><td>
+                             ${part.connection_points && part.connection_points.length > 0 ? 
+                                `${part.connection_points.length} points (${(part.connection_types || []).join(', ')})` : 
+                                `<span class="text-warning">⚠️ No Shadow Data (Using ${part.studs.length} studs fallback)</span>`
+                              }
+                        </td></tr>
                         <tr><th>Status</th><td>${part.extraction_status}</td></tr>
+                        <tr>
+                            <th>Parents</th>
+                            <td>
+                                <div class="part-link-list">
+                                    ${(part.parents || []).map(p => `<span class="part-link" onclick="showDetail('${p}')">${p}</span>`).join('') || '<span class="text-subtle">None</span>'}
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Subparts</th>
+                            <td>
+                                <div class="part-link-list">
+                                    ${(part.subparts || []).map(p => `<span class="part-link" onclick="showDetail('${p}')">${p}</span>`).join('') || '<span class="text-subtle">None</span>'}
+                                </div>
+                            </td>
+                        </tr>
                     </table>
+
+                    <div class="metadata-section">
+                        <h4>Metadata</h4>
+                        <div class="metadata-list">
+                            ${(part.metadata || []).map(m => `<div class="metadata-item">${m}</div>`).join('') || '<div class="text-subtle">No metadata found</div>'}
+                        </div>
+                    </div>
 
                     <div class="ldraw-source-container">
                         <details>
-                            <summary>View LDraw Source</summary>
+                            <summary>View LDraw Source (Commands only)</summary>
                             <pre class="ldraw-source">${part.raw_content}</pre>
                         </details>
                     </div>

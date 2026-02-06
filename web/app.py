@@ -519,6 +519,19 @@ def api_distributions():
             "max": max(technic_hole_counts),
             "mean": sum(technic_hole_counts) / len(technic_hole_counts)
         }
+
+    # Connection Types distribution
+    cursor = conn.execute("SELECT connection_types_json FROM parts WHERE connection_types_json IS NOT NULL")
+    type_counts = {}
+    for row in cursor.fetchall():
+        types = json.loads(row[0]) if row[0] else []
+        for t in types:
+            type_counts[t] = type_counts.get(t, 0) + 1
+            
+    distributions["connection_types"] = {
+        "type": "categorical",
+        "values": [{"label": k, "count": v} for k, v in sorted(type_counts.items(), key=lambda x: x[1], reverse=True)]
+    }
     
     return jsonify({"distributions": distributions})
 
@@ -588,6 +601,7 @@ def api_stats():
             "total_with_images": sum(c["with_images"] for c in categories.values()),
             "total_parts": stats["total"]
         },
+        },
         "categories": categories,
         "connections": {
             "total_studs": total_studs,
@@ -595,7 +609,9 @@ def api_stats():
             "total_technic_holes": total_technic_holes,
             "parts_with_studs": parts_with_studs,
             "parts_with_anti_studs": parts_with_anti_studs,
-            "parts_with_technic_holes": parts_with_technic_holes
+            "parts_with_technic_holes": parts_with_technic_holes,
+            # Placeholder for connection types stats
+            "types_summary": "See distributions API for breakdown"
         }
     })
 
@@ -737,7 +753,7 @@ def api_parts():
     # Get parts
     cursor = conn.execute(f"""
         SELECT part_id, part_name, type, category, ldraw_org, height, has_image, image_path, extraction_status,
-               studs_json, anti_studs_json, technic_holes_json
+               studs_json, anti_studs_json, technic_holes_json, connection_points_json
         FROM parts
         WHERE {where_sql}
         ORDER BY part_id
@@ -753,6 +769,7 @@ def api_parts():
         studs = json.loads(row[9]) if row[9] else []
         anti_studs = json.loads(row[10]) if row[10] else []
         technic_holes = json.loads(row[11]) if row[11] else []
+        connection_points = json.loads(row[12]) if row[12] else []
         
         parts.append({
             "part_id": row[0],
@@ -766,7 +783,8 @@ def api_parts():
             "extraction_status": row[8],
             "stud_count": len(studs),
             "anti_stud_count": len(anti_studs),
-            "technic_hole_count": len(technic_holes)
+            "technic_hole_count": len(technic_holes),
+            "connection_count": len(connection_points)
         })
     
     return jsonify({
@@ -796,7 +814,10 @@ def api_part_detail(part_id):
         part_path = get_parts_dir() / f"{part_id}.dat"
         if part_path.exists():
             with open(part_path, 'r', encoding='utf-8', errors='ignore') as f:
-                raw_content = f.read()
+                lines = f.readlines()
+                # Filter out meta-command lines (0 !)
+                filtered_lines = [line for line in lines if not line.strip().startswith('0 !')]
+                raw_content = "".join(filtered_lines)
     except Exception as e:
         raw_content = f"Error loading file: {str(e)}"
     
@@ -810,6 +831,11 @@ def api_part_detail(part_id):
         "anti_studs": part.anti_studs,
         "technic_holes": part.technic_holes,
         "extraction_status": part.extraction_status,
+        "metadata": part.metadata,
+        "subparts": part.subparts,
+        "parents": part.parents,
+        "connection_points": part.connection_points,
+        "connection_types": part.connection_types,
         "raw_content": raw_content
     })
 
