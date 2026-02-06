@@ -25,6 +25,11 @@ class PartInfo:
     anti_studs: List[Tuple[float, float, float]]
     technic_holes: List[Tuple[float, float, float]]  # Pin/axle hole positions
     extraction_status: str  # success, partial, failed
+    metadata: List[str] = None
+    subparts: List[str] = None
+    parents: List[str] = None
+    connection_points: List[dict] = None  # List of dicts describing points
+    connection_types: List[str] = None    # List of SNAP types found
 
     @property
     def name(self) -> str:
@@ -73,7 +78,10 @@ def init_db(db_path: Path = DB_PATH) -> sqlite3.Connection:
             studs_json TEXT,
             anti_studs_json TEXT,
             technic_holes_json TEXT,
-            extraction_status TEXT DEFAULT 'pending'
+            technic_holes_json TEXT,
+            extraction_status TEXT DEFAULT 'pending',
+            connection_points_json TEXT,
+            connection_types_json TEXT
         )
     """)
     
@@ -107,7 +115,23 @@ def init_db(db_path: Path = DB_PATH) -> sqlite3.Connection:
         conn.execute("ALTER TABLE parts ADD COLUMN ldraw_org TEXT")
         conn.commit()
     except sqlite3.OperationalError:
-        # Column already exists
+        pass
+        
+    # Migrate to add metadata_json, subparts_json, parents_json fields
+    try:
+        conn.execute("ALTER TABLE parts ADD COLUMN metadata_json TEXT")
+        conn.execute("ALTER TABLE parts ADD COLUMN subparts_json TEXT")
+        conn.execute("ALTER TABLE parts ADD COLUMN parents_json TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+
+    # Migrate to add connection fields
+    try:
+        conn.execute("ALTER TABLE parts ADD COLUMN connection_points_json TEXT")
+        conn.execute("ALTER TABLE parts ADD COLUMN connection_types_json TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
         pass
     
     # Create indices
@@ -153,8 +177,8 @@ def save_part(conn: sqlite3.Connection, part: PartInfo) -> None:
     
     conn.execute("""
         INSERT OR REPLACE INTO parts 
-        (part_id, part_name, type, category, ldraw_org, height, bounds_json, studs_json, anti_studs_json, technic_holes_json, extraction_status, has_image, image_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (part_id, part_name, type, category, ldraw_org, height, bounds_json, studs_json, anti_studs_json, technic_holes_json, extraction_status, has_image, image_path, metadata_json, subparts_json, parents_json, connection_points_json, connection_types_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         part.part_id,
         part.part_name,
@@ -168,14 +192,19 @@ def save_part(conn: sqlite3.Connection, part: PartInfo) -> None:
         json.dumps(part.technic_holes),
         part.extraction_status,
         has_image,
-        image_path
+        image_path,
+        json.dumps(part.metadata or []),
+        json.dumps(part.subparts or []),
+        json.dumps(part.parents or []),
+        json.dumps(part.connection_points or []),
+        json.dumps(part.connection_types or [])
     ))
 
 
 def load_part(conn: sqlite3.Connection, part_id: str) -> Optional[PartInfo]:
     """Load a part from the database."""
     cursor = conn.execute(
-        "SELECT part_id, part_name, type, category, ldraw_org, height, bounds_json, studs_json, anti_studs_json, technic_holes_json, extraction_status FROM parts WHERE part_id = ?", (part_id,)
+        "SELECT part_id, part_name, type, category, ldraw_org, height, bounds_json, studs_json, anti_studs_json, technic_holes_json, extraction_status, metadata_json, subparts_json, parents_json, connection_points_json, connection_types_json FROM parts WHERE part_id = ?", (part_id,)
     )
     row = cursor.fetchone()
     if not row:
@@ -192,7 +221,12 @@ def load_part(conn: sqlite3.Connection, part_id: str) -> Optional[PartInfo]:
         studs=json.loads(row[7]) if row[7] else [],
         anti_studs=json.loads(row[8]) if row[8] else [],
         technic_holes=json.loads(row[9]) if row[9] else [],
-        extraction_status=row[10]
+        extraction_status=row[10],
+        metadata=json.loads(row[11]) if row[11] else [],
+        subparts=json.loads(row[12]) if row[12] else [],
+        parents=json.loads(row[13]) if row[13] else [],
+        connection_points=json.loads(row[14]) if row[14] else [],
+        connection_types=json.loads(row[15]) if row[15] else []
     )
 
 
