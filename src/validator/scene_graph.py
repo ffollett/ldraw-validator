@@ -24,6 +24,7 @@ class SceneGraph:
         
         # Calculate AABB for spatial indexing
         (min_x, min_y, min_z), (max_x, max_y, max_z) = get_world_aabb(placement)
+        # print(f"Adding placement {pid}: AABB ({min_x}, {min_y}, {min_z}) - ({max_x}, {max_y}, {max_z})")
         
         # Rtree expects (minx, miny, maxx, maxy) for 2D or (minx, miny, minz, maxx, maxy, maxz) for 3D
         # We need to ensure we are using 3D if we want Z queries

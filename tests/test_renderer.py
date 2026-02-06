@@ -12,7 +12,11 @@ class TestRendererUnits:
     @patch('shutil.which')
     def test_render_scene_command_generation(self, mock_which, mock_subprocess):
         # Setup
-        mock_which.return_value = "LDView" # Simulate LDView in path
+        def which_side_effect(arg):
+            if arg == "LDView": return "LDView"
+            return None
+            
+        mock_which.side_effect = which_side_effect
         mock_subprocess.return_value = MagicMock(returncode=0)
         
         sg = SceneGraph()
