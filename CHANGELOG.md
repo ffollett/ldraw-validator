@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated architecture.md with web component diagrams
   - Added CHANGELOG.md for tracking changes
 
+- Test visualization tool (`scripts/visualize_tests.py`)
+  - Render all test cases to images with pass/fail badges in filenames
+  - Visual debugging of validation logic and test geometry
+  - Generates `test_renders/` directory with annotated images
+
+### Planned
+- Interactive Test Explorer web page (`/tests`)
+  - 3D viewer for test cases with Three.js
+  - Visual comparison of expected vs actual validation results
+  - Color-coded brick highlighting (grounded=green, floating=red, collision=orange)
+  - Educational tool for understanding validator behavior
+
 ## [0.1.0] - 2026-02-01
 
 ### Added

@@ -620,6 +620,32 @@ LDraw Library → Part Files → Geometric Extraction → PartInfo
 
 ## Future Enhancements
 
+
+### Test Visualization System
+**Status**: CLI tool implemented, web UI planned
+
+**Current (v0.1.0)**:
+- CLI tool (`scripts/visualize_tests.py`) renders all test cases
+- Pass/fail badges in filenames (✓/✗)
+- Output: `test_renders/` directory with annotated images
+
+**Planned (Future)**:
+- Interactive web page at `/tests`
+- 3D viewer for each test case using Three.js
+- Visual comparison of expected vs actual validation results
+- Color-coded brick highlighting:
+  - Green: Grounded bricks
+  - Red: Floating bricks
+  - Orange: Collision zones
+- Side-by-side test comparison
+- Educational tool for understanding validator logic
+
+**Implementation Notes**:
+- Reuse Three.js LDraw loader from part catalog viewer
+- Server-side: `/api/test_cases` endpoint with manifest data
+- Client-side validation or server-side with overlay annotations
+- Filter by test category (valid/invalid/edge_cases)
+
 ### Phase 1: Synthetic Dataset Generation
 - Generate valid/invalid MOC combinations
 - Use validation engine to label training data

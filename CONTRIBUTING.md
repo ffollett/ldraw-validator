@@ -232,6 +232,25 @@ The builder:
 4. Update tests to verify extraction
 5. Update web UI to display new attribute
 
+### Visualizing Test Cases
+
+Test cases can be rendered to images for visual inspection:
+
+```bash
+# Activate virtual environment
+.venv\Scripts\activate.ps1
+
+# Render all test cases
+python scripts/visualize_tests.py
+```
+
+Output: `test_renders/` with pass/fail badges in filenames:
+- `✓_1.1_stacked_bricks.png` - Test passed (matches expectation)
+- `✗_2.1_floating_brick.png` - Test failed (doesn't match expectation)
+
+**Future**: Interactive web UI at `/tests` for 3D exploration with validation overlays.
+
+
 ### Working with the Web Interface
 
 ```bash
