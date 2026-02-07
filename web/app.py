@@ -601,7 +601,6 @@ def api_stats():
             "total_with_images": sum(c["with_images"] for c in categories.values()),
             "total_parts": stats["total"]
         },
-        },
         "categories": categories,
         "connections": {
             "total_studs": total_studs,
@@ -842,7 +841,15 @@ def api_part_detail(part_id):
 
 @app.route('/api/images/<part_id>.png')
 def api_image(part_id):
-    """Serve part image (from LDraw or placeholder)."""
+    """Serve part image with priority: rendered > downloaded > placeholder."""
+    project_root = Path(__file__).parent.parent
+    
+    # Priority 1: Check user-rendered images (highest priority)
+    rendered_path = project_root / "data" / "rendered_images" / f"{part_id}.png"
+    if rendered_path.exists():
+        return send_file(rendered_path, mimetype='image/png')
+    
+    # Priority 2: Check database for downloaded image path
     conn = get_db()
     cursor = conn.execute("SELECT image_path, has_image FROM parts WHERE part_id = ?", (part_id,))
     row = cursor.fetchone()
@@ -850,7 +857,6 @@ def api_image(part_id):
     if row and row[1]:  # has_image = True
         path_str = row[0]
         if path_str:
-            project_root = Path(__file__).parent.parent
             image_path = Path(path_str)
             
             if not image_path.is_absolute():
@@ -859,12 +865,12 @@ def api_image(part_id):
             if image_path.exists():
                 return send_file(image_path, mimetype='image/png')
     
-    # Check if we have it in the new rendered location even if DB is not updated (fallback)
-    manual_render_path = Path(__file__).parent.parent / "data" / "rendered_images" / f"{part_id}.png"
-    if manual_render_path.exists():
-        return send_file(manual_render_path, mimetype='image/png')
+    # Priority 3: Check part_images as fallback (in case DB is not updated)
+    part_images_path = project_root / "data" / "part_images" / f"{part_id}.png"
+    if part_images_path.exists():
+        return send_file(part_images_path, mimetype='image/png')
 
-    # Return placeholder
+    # Priority 4: Return placeholder
     placeholder = Path(__file__).parent / "static" / "placeholder.png"
     if placeholder.exists():
         return send_file(placeholder, mimetype='image/png')
