@@ -124,7 +124,7 @@ class ShadowParser:
         
         grid_tokens = props['grid'].split()
         if len(grid_tokens) >= 6 and grid_tokens[0] == 'C' and grid_tokens[2] == 'C':
-            # Rectangular grid centered?
+            # Rectangular grid centered: C count_x C count_z spacing_x spacing_z
             count_x = int(grid_tokens[1])
             count_z = int(grid_tokens[3])
             spacing_x = float(grid_tokens[4])
@@ -145,6 +145,35 @@ class ShadowParser:
                     new_p = base_point.copy()
                     # Apply offset to base pos
                     # Assuming grid is local XZ plane usually?
+                    base_pos = new_p['pos']
+                    new_p['pos'] = [
+                        base_pos[0] + px,
+                        base_pos[1],
+                        base_pos[2] + pz
+                    ]
+                    points.append(new_p)
+            return points
+        elif len(grid_tokens) >= 5 and grid_tokens[0] == 'C':
+            # Single-row or simple grid: C count_x count_z spacing_x spacing_z
+            # Example: "C 2 1 20 0" means 2 columns, 1 row, 20 spacing in X, 0 in Z
+            count_x = int(grid_tokens[1])
+            count_z = int(grid_tokens[2])
+            spacing_x = float(grid_tokens[3])
+            spacing_z = float(grid_tokens[4])
+            
+            points = []
+            
+            # center offset
+            start_x = -((count_x - 1) * spacing_x) / 2
+            start_z = -((count_z - 1) * spacing_z) / 2
+            
+            for ix in range(count_x):
+                for iz in range(count_z):
+                    px = start_x + (ix * spacing_x)
+                    pz = start_z + (iz * spacing_z)
+                    
+                    # Create new point copy
+                    new_p = base_point.copy()
                     base_pos = new_p['pos']
                     new_p['pos'] = [
                         base_pos[0] + px,
