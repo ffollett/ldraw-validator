@@ -41,6 +41,7 @@ env/
 .coverage
 htmlcov/
 *.cover
+test_renders/
 
 # Project-specific
 test_*.txt
