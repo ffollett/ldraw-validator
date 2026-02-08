@@ -137,6 +137,44 @@ class LDrawViewer {
         }
     }
 
+    async loadFromContent(ldrawContent, filename = "model.ldr") {
+        try {
+            this.showLoading(true);
+
+            // Clear existing model
+            this.clear();
+
+            // Parse and load LDraw content
+            const loader = new LDrawLoader();
+            loader.setPartsLibraryPath('/');
+            loader.smoothNormals = true;
+
+            try {
+                await loader.preloadMaterials('LDConfig.ldr');
+            } catch (err) {
+                console.warn('Failed to preload LDConfig.ldr', err);
+            }
+
+            return new Promise((resolve) => {
+                loader.parse(
+                    ldrawContent,
+                    (group) => {
+                        group.rotation.x = Math.PI;
+                        this.currentModel = group;
+                        this.scene.add(group);
+                        this.fitCameraToModel(group);
+                        this.showLoading(false);
+                        resolve(group);
+                    }
+                );
+            });
+        } catch (error) {
+            this.showLoading(false);
+            this.showError(error.message);
+            throw error;
+        }
+    }
+
     fitCameraToModel(model) {
         // Calculate bounding box
         const box = new THREE.Box3().setFromObject(model);

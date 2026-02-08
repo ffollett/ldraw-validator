@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}Test Explorer - LDraw{% endblock %}
+
+{% block content %}
+<div class="app-container">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>Test Log</h2>
+            <button id="refresh-tests-btn" class="icon-btn" title="Refresh test results">↺</button>
+        </div>
+        <div class="log-container-wrapper">
+            <pre id="test-log" class="test-log-content">Loading log...</pre>
+        </div>
+
+        <div class="sidebar-footer">
+            <div id="test-summary-card" class="summary-card">
+                <div class="summary-stat">
+                    <span class="label">Total</span>
+                    <span id="total-tests" class="value">-</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="label">Passed</span>
+                    <span id="passed-tests" class="value text-success">-</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="label">Failed</span>
+                    <span id="failed-tests" class="value text-danger">-</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="catalog-main">
+        <header class="catalog-header">
+            <div class="header-left">
+                <h1>Test Explorer</h1>
+                <p class="subtitle">Validation results and visual verification</p>
+            </div>
+        </header>
+
+        <div id="test-grid" class="test-grid">
+            <!-- Test results go here -->
+        </div>
+    </main>
+</div>
+
+<!-- Modal for 3D Viewer -->
+<div id="modal" class="modal hidden">
+    <div class="modal-content large">
+        <span class="close">&times;</span>
+        <div id="modal-body">
+            <div class="modal-layout">
+                <div class="modal-image-section">
+                    <div id="view-container">
+                        <div id="viewer-3d" class="viewer-3d"></div>
+                    </div>
+                </div>
+                <div class="modal-details-section">
+                    <h2 id="modal-title">Test Case</h2>
+                    <div id="modal-test-id" class="part-id-subtitle">ID</div>
+
+                    <div class="test-info-box">
+                        <div id="modal-status-badge" class="badge">Status</div>
+                        <p id="modal-description" class="test-desc"></p>
+                    </div>
+
+                    <div id="modal-details-list" class="details-list">
+                        <!-- Details (Expected/Errors) -->
+                    </div>
+
+                    <div class="ldraw-source-container">
+                        <details>
+                            <summary>View LDraw Source</summary>
+                            <pre id="modal-source" class="ldraw-source"></pre>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="/static/ldraw_viewer.js"></script>
+<script>
+    let viewer3D = null;
+
+    async function loadTestResults() {
+        const grid = document.getElementById('test-grid');
+        const logEl = document.getElementById('test-log');
+
+        grid.innerHTML = '<div class="loading-grid">Loading results...</div>';
+
+        try {
+            const response = await fetch('/api/tests');
+            const data = await response.json();
+
+            if (data.error) {
+                grid.innerHTML = `<div class="error-msg">${data.error}</div>`;
+                logEl.textContent = data.error;
+                return;
+            }
+
+            logEl.textContent = data.log;
+            document.getElementById('total-tests').textContent = data.summary.total;
+            document.getElementById('passed-tests').textContent = data.summary.passed;
+            document.getElementById('failed-tests').textContent = data.summary.failed;
+
+            grid.innerHTML = '';
+
+            data.results.forEach(res => {
+                const card = document.createElement('div');
+                card.className = `test-card ${res.status}`;
+
+                const imgUrl = res.image ? `/api/tests/renders/${res.image}` : '/static/placeholder.png';
+
+                card.innerHTML = `
+                    <div class="card-image-wrapper">
+                        <img src="${imgUrl}" alt="${res.name}" loading="lazy" />
+                        <div class="status-overlay ${res.status}">
+                            ${res.status === 'pass' ? '✓ PASS' : '✗ FAIL'}
+                        </div>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-header">
+                            <span class="test-id">${res.id}</span>
+                            <strong title="${res.name}">${res.name}</strong>
+                        </div>
+                        <div class="test-actions">
+                            <button class="action-btn small view-3d-btn" data-id="${res.id}" data-file="${res.file}">
+                                View 3D Model
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                card.querySelector('.view-3d-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showTestDetail(res);
+                });
+
+                grid.appendChild(card);
+            });
+
+        } catch (e) {
+            console.error("Failed to load test results", e);
+            grid.innerHTML = '<div class="error-msg">Failed to load test results.</div>';
+        }
+    }
+
+    async function showTestDetail(test) {
+        const modal = document.getElementById('modal');
+        const titleEl = document.getElementById('modal-title');
+        const testIdEl = document.getElementById('modal-test-id');
+        const badgeEl = document.getElementById('modal-status-badge');
+        const descEl = document.getElementById('modal-description');
+        const detailsEl = document.getElementById('modal-details-list');
+        const sourceEl = document.getElementById('modal-source');
+        const viewerContainer = document.getElementById('viewer-3d');
+
+        titleEl.textContent = test.name;
+        testIdEl.textContent = `Test ${test.id}`;
+        badgeEl.textContent = test.status.toUpperCase();
+        badgeEl.className = `badge status-${test.status}`;
+        descEl.textContent = ""; // Description is in manifest but not easily accessible here without extra mapping
+
+        detailsEl.innerHTML = test.details.map(d => `<div class="detail-item">${d}</div>`).join('');
+
+        modal.classList.remove('hidden');
+
+        // Load 3D model
+        import('/static/ldraw_viewer.js').then(async (module) => {
+            if (viewer3D) {
+                viewer3D.dispose();
+                viewer3D = null;
+            }
+
+            try {
+                // Fetch file content
+                const fileResponse = await fetch(`/api/tests/files/${test.file}`);
+                const ldrawContent = await fileResponse.text();
+                sourceEl.textContent = ldrawContent;
+
+                viewer3D = new module.LDrawViewer('viewer-3d');
+                // We need to load from content since it's a test file across directories
+                await viewer3D.loadFromContent(ldrawContent, test.file);
+            } catch (error) {
+                console.error('Failed to load 3D model:', error);
+                viewerContainer.innerHTML = '<div class="error-msg">Failed to load 3D model.</div>';
+            }
+        });
+
+        window.currentModalCleanup = () => {
+            modal.classList.add('hidden');
+            if (viewer3D) {
+                viewer3D.dispose();
+                viewer3D = null;
+            }
+            window.currentModalCleanup = null;
+        };
+    }
+
+    // Modal Close
+    document.querySelector('.close').addEventListener('click', () => {
+        if (window.currentModalCleanup) window.currentModalCleanup();
+    });
+
+    document.getElementById('modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('modal')) {
+            if (window.currentModalCleanup) window.currentModalCleanup();
+        }
+    });
+
+    document.getElementById('refresh-tests-btn').addEventListener('click', loadTestResults);
+
+    // Initial load
+    loadTestResults();
+</script>
+
+<style>
+    .test-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+        padding: 20px;
+    }
+
+    .test-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+        transition: transform 0.2s, box-shadow 0.2s;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .test-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    .test-card.pass {
+        border-top: 4px solid #10b981;
+    }
+
+    .test-card.fail {
+        border-top: 4px solid #ef4444;
+    }
+
+    .test-info {
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        justify-content: space-between;
+    }
+
+    .test-header {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        margin-bottom: 15px;
+    }
+
+    .test-id {
+        background: #f3f4f6;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #4b5563;
+    }
+
+    .status-overlay {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .status-overlay.pass {
+        background: rgba(16, 185, 129, 0.9);
+    }
+
+    .status-overlay.fail {
+        background: rgba(239, 68, 68, 0.9);
+    }
+
+    .log-container-wrapper {
+        flex-grow: 1;
+        background: #111827;
+        color: #e5e7eb;
+        padding: 10px;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.8rem;
+        overflow: auto;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        max-height: calc(100vh - 400px);
+    }
+
+    .test-log-content {
+        margin: 0;
+        white-space: pre-wrap;
+    }
+
+    .summary-card {
+        background: #f9fafb;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .summary-stat {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .summary-stat:last-child {
+        margin-bottom: 0;
+    }
+
+    .summary-stat .label {
+        color: #6b7280;
+        font-size: 0.85rem;
+    }
+
+    .summary-stat .value {
+        font-weight: 700;
+    }
+
+    .text-success {
+        color: #10b981;
+    }
+
+    .text-danger {
+        color: #ef4444;
+    }
+
+    .detail-item {
+        background: #f3f4f6;
+        padding: 8px 12px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        font-size: 0.9rem;
+        border-left: 3px solid #6b7280;
+    }
+
+    .badge.status-pass {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .badge.status-fail {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .test-info-box {
+        margin: 15px 0;
+    }
+</style>
+{% endblock %}

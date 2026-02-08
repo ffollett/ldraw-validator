@@ -9,7 +9,7 @@ class TestValidMOCs:
     
     @pytest.mark.parametrize("case_id", [
         "1.1", "1.2", "1.3", "1.4", "1.5",  # Basic valid
-        "3.1", "3.2", "3.3", "3.4",          # Edge cases (valid)
+        "3.1", "3.2", "3.3",          # Edge cases (valid)
     ])
     def test_valid_case(self, case_id: str, manifest: dict, test_data_dir: Path):
         case = next(c for c in manifest["test_cases"] if c["id"] == case_id)

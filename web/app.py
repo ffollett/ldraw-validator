@@ -972,6 +972,120 @@ def api_render_part(part_id):
         }), 500
 
 
+@app.route('/tests')
+def tests_page():
+    """Render the test explorer page."""
+    return render_template('tests.html', active_page='tests')
+
+
+@app.route('/api/tests')
+def api_tests():
+    """Get summarized test results from the log file and manifest."""
+    project_root = Path(__file__).parent.parent
+    log_path = project_root / "test_renders" / "visualize_tests.log"
+    manifest_path = project_root / "test_data" / "manifest.json"
+    
+    if not log_path.exists():
+        return jsonify({"error": "Test log not found. Run scripts/visualize_tests.py first."}), 404
+        
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            log_content = f.read()
+            
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            manifest = json.load(f)
+            
+        # Parse log to get status for each test
+        results = []
+        lines = log_content.splitlines()
+        
+        # Simple parsing logic
+        current_test = None
+        for line in lines:
+            line = line.strip()
+            # Match lines like "✓ 1.1: Basic stud-to-antistud connection test" or "✗ 3.1: ..."
+            if (line.startswith('✓') or line.startswith('✗')) and ':' in line:
+                parts = line.split(':')
+                # status_bit could be "✓ 1.1" or "✗ 3.1"
+                status_bit = parts[0].split()
+                if len(status_bit) < 2:
+                    continue
+                status = status_bit[0] # ✓ or ✗
+                test_id = status_bit[1]
+                name = parts[1].strip()
+                
+                current_test = {
+                    "id": test_id,
+                    "name": name,
+                    "status": "pass" if status == '✓' else "fail",
+                    "details": [],
+                    "image": None,
+                    "file": None
+                }
+                results.append(current_test)
+            elif current_test and line.startswith('Expected:'):
+                current_test["details"].append(line)
+            elif current_test and line.startswith('Errors:'):
+                current_test["details"].append(line)
+                
+        # Map images and manifest files
+        render_dir = project_root / "test_renders"
+        image_files = list(render_dir.glob("*.png"))
+        
+        test_case_map = {tc["id"]: tc for tc in manifest.get("test_cases", [])}
+        
+        for res in results:
+            # Find image starting with badge and id
+            badge = "✓" if res["status"] == "pass" else "✗"
+            match_prefix = f"{badge}_{res['id']}_"
+            for img in image_files:
+                if img.name.startswith(match_prefix):
+                    res["image"] = img.name
+                    break
+            
+            # Map file
+            if res["id"] in test_case_map:
+                res["file"] = test_case_map[res["id"]]["file"]
+        
+        return jsonify({
+            "log": log_content,
+            "results": results,
+            "summary": {
+                "total": len(results),
+                "passed": len([r for r in results if r["status"] == "pass"]),
+                "failed": len([r for r in results if r["status"] == "fail"])
+            }
+        })
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/tests/renders/<filename>')
+def api_test_render(filename):
+    """Serve a test render image."""
+    image_path = Path(__file__).parent.parent / "test_renders" / filename
+    if image_path.exists():
+        return send_file(image_path, mimetype='image/png')
+    return "Not found", 404
+
+
+@app.route('/api/tests/files/<path:filename>')
+def api_test_file(filename):
+    """Serve a test LDraw file content."""
+    file_path = Path(__file__).parent.parent / "test_data" / filename
+    if not file_path.exists():
+        return "Not found", 404
+        
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        return Response(content, mimetype='text/plain')
+    except Exception as e:
+        return str(e), 500
+
+
 if __name__ == '__main__':
     print("Starting LDraw Catalog Viewer...")
     print("Open http://localhost:5000 in your browser")

@@ -233,6 +233,7 @@ python web/app.py
 - [Product Requirements Document](docs/prd.md) - Original Phase 0 PRD
 - [Architecture Overview](docs/architecture.md) - Technical implementation details
 - [Strategy Document](docs/strategy.md) - Long-term planning (internal)
+- [Testing Strategy](docs/testing_strategy.md) - Coverage matrix and validation plans
 - [Contributing Guide](CONTRIBUTING.md) - Development workflow
 
 ## Project Status
