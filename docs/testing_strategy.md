@@ -10,19 +10,21 @@ The core mission is to validate that a digital LEGO model (LDraw/MPD) can be phy
 3.  **Connection Logic**: Connections must be legal (Studs fit in Tubes, Pins fit in Holes).
 4.  **Grid Alignment**: Parts must align to the LEGO system grid.
 
-## 2. Part Taxonomy
+## 2. Part Taxonomy (Aligned with Catalog Database)
 
-We categorize parts based on their geometric properties and validation requirements.
+The validator's taxonomy is derived directly from the `catalog.db`, specifically using the `type` field (extracted from the first word of the part's description).
 
-| Category | Description | Validation Complexity | Current Support |
-| :--- | :--- | :--- | :--- |
-| **Standard Brick** | Basic cuboids (Bricks, Plates, Tiles) | Low (AABB sufficient) | ✅ Full |
-| **Sloped/Curved** | Parts with non-rectangular geometry (Slopes, Arches) | Medium (Requires Convex Hull) | ⚠️ Partial (approximated as Box) |
-| **Technic Beam** | Beams with holes, Liftarms | Medium (Cylinder/Hole alignment) | ⚠️ Partial (Basic holes detected) |
-| **Technic Axle/Pin**| Connectors and Axles | High (Friction, rotation, precise fit) | ❌ Limited |
-| **SNOT / Modified** | Bricks with studs on sides, headlight bricks | Medium (Grid alignment complexity) | ✅ Supported (via Matrices) |
-| **Organic/Special** | Minifigs, Plants, Animals | High (Complex meshes) | ❌ Bounds only |
-| **Baseplates** | Building surface | Low | ✅ Ground anchor |
+| DB Type | Description | Volume (Parts) | Validation Complexity | Current Support |
+| :--- | :--- | :--- | :--- | :--- |
+| **Brick / Plate / Tile** | Standard cuboid elements | ~2,600 | Low (AABB sufficient) | ✅ Full |
+| **Slope / Arch** | Sloped and curved geometry | ~450+ | Medium (Requires Convex Hull) | ⚠️ Partial (Box approx) |
+| **Technic** | Holes, Beams, Pins, Axles | ~720+ | Medium-High (Precise fit) | ⚠️ Partial (Holes only) |
+| **Minifig / Figure / Animal**| Organic/Complex shapes | ~2,800+ | High (Complex mesh) | ❌ Bounds only |
+| **Baseplate** | Build plate surfaces | ~180 | Low | ✅ Ground anchor |
+| **Electric** | Motors, sensors, cables | ~600+ | High (Connection logic) | ❌ Bounds only |
+| **Sticker / Pattern** | Decorative elements | ~2,000 | N/A | ❌ Ignored |
+
+*Counts based on catalog as of 2026-02-08. Total catalog parts: 12,659.*
 
 ### 2.1 Primitives (The "Atoms" of Validation)
 Validation relies on identifying specific primitives within parts:
