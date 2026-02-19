@@ -38,7 +38,7 @@
         </div>
     </nav>
 
-    <main class="page-content">
+    <main class="page-content {% if active_page == 'catalog' or active_page == 'tests' %}app-layout{% endif %}">
         {% block content %}{% endblock %}
     </main>
 

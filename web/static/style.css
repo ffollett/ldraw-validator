@@ -303,6 +303,7 @@ button,
     overflow: hidden;
     background: #f9fafb;
     position: relative;
+    min-height: 0;
 }
 
 .catalog-header {
@@ -585,12 +586,20 @@ button,
     }
 }
 
-/* Batch & Stats Pages (Keep layout for now, maybe wrap in container later) */
+/* Page Layouts */
 .page-content {
-    /* For non-catalog pages */
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
+    height: calc(100vh - 64px);
+    overflow-y: auto;
+}
+
+.page-content.app-layout {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
 }
 
 /* ... Preserving necessary bits for stats/batch ... */
@@ -865,8 +874,13 @@ button,
     box-shadow: var(--shadow-md);
 }
 
-.test-card.pass { border-top: 4px solid #10b981; }
-.test-card.fail { border-top: 4px solid #ef4444; }
+.test-card.pass {
+    border-top: 4px solid #10b981;
+}
+
+.test-card.fail {
+    border-top: 4px solid #ef4444;
+}
 
 .card-image-wrapper {
     position: relative;
@@ -891,11 +905,16 @@ button,
     font-size: 0.7rem;
     font-weight: 700;
     color: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.status-overlay.pass { background: rgba(16, 185, 129, 0.9); }
-.status-overlay.fail { background: rgba(239, 68, 68, 0.9); }
+.status-overlay.pass {
+    background: rgba(16, 185, 129, 0.9);
+}
+
+.status-overlay.fail {
+    background: rgba(239, 68, 68, 0.9);
+}
 
 .test-info {
     display: flex;
@@ -962,8 +981,13 @@ button,
     font-size: 0.9rem;
 }
 
-.summary-stat:last-child { margin-bottom: 0; }
-.summary-stat .value { font-weight: 700; }
+.summary-stat:last-child {
+    margin-bottom: 0;
+}
+
+.summary-stat .value {
+    font-weight: 700;
+}
 
 .modal-content.large {
     max-width: 1200px;

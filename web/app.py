@@ -5,6 +5,7 @@ Flask web app for browsing the LDraw part catalog.
 from flask import Flask, render_template, jsonify, send_file, request, g, Response
 from pathlib import Path
 import sys
+import json
 import threading
 import time
 import uuid
@@ -330,8 +331,6 @@ def api_batch_status(job_id):
                 "new_log": job["log"][last_log_index:]
             }
             last_log_index = len(job["log"])
-            
-            import json
             yield f"data: {json.dumps(update)}\n\n"
             
             if job["status"] == "completed":
@@ -413,7 +412,6 @@ def api_schema():
 @app.route('/api/distributions')
 def api_distributions():
     """Get value distributions for all fields."""
-    import json
     conn = get_db()
     
     distributions = {}
@@ -539,7 +537,6 @@ def api_distributions():
 @app.route('/api/stats')
 def api_stats():
     """Get catalog statistics."""
-    import json
     conn = get_db()
     
     # Overall stats
@@ -761,7 +758,6 @@ def api_parts():
     
     parts = []
     for row in cursor.fetchall():
-        import json
         # Indices based on: part_id(0), part_name(1), type(2), category(3), ldraw_org(4), 
         # height(5), has_image(6), image_path(7), extraction_status(8), 
         # studs_json(9), anti_studs_json(10), technic_holes_json(11)
@@ -903,7 +899,6 @@ def api_render_part(part_id):
     """Render a part image on-demand using LDView."""
     from validator.scene_graph import SceneGraph, Placement
     from validator.renderer import render_scene
-    import json
     
     conn = get_db()
     
